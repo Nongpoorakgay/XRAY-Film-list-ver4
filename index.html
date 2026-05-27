@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเช็คฟิล์มนอกเวลา - Overtime Film Verification System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Sarabun & Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for beautiful Dashboard widgets -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Excel Import/Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Sarabun', 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        /* Custom scrollbar for premium look */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-slate-800 flex flex-col min-h-screen">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 text-white shadow-md px-6 py-4 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-white/10 p-2 rounded-lg backdrop-blur-sm border border-white/20">
+                    <i class="fa-solid fa-hospital-user text-2xl text-blue-300"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-wide">ระบบเช็คฟิล์มนอกเวลา</h1>
+                    <p class="text-xs text-blue-200">ระบบติดตาม ตรวจสอบ และบันทึกฟิล์มเอกซเรย์นอกเวลาทำการ (Department of Radiology)</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="text-right hidden md:block">
+                    <p class="text-xs text-blue-200">เวอร์ชันระบบ</p>
+                    <p class="text-sm font-semibold text-white">v2.1 (Google Apps Script Compatible)</p>
+                </div>
+                <div class="h-8 w-[1px] bg-white/20 hidden md:block"></div>
+                <!-- Add New Record Button -->
+                <button onclick="openAddModal()" class="bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all flex items-center gap-2 transform active:scale-95 text-sm">
+                    <i class="fa-solid fa-plus-circle"></i>
+                    <span>บันทึกข้อมูลใหม่</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area with Sidebar layout -->
+    <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex-1 flex flex-col lg:flex-row gap-6">
+        
+        <!-- Sidebar Filter controls (Left Side) -->
+        <aside class="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6">
+            
+            <!-- Quick Search Card -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80">
+                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-magnifying-glass text-blue-600"></i>
+                    <span>ค้นหาแบบละเอียด</span>
+                </h2>
+                <div class="relative">
+                    <input type="text" id="searchQuery" oninput="applyFilters()" placeholder="ค้นหาชื่อผู้ป่วย, HN, เลขออเดอร์..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-all" />
+                    <i class="fa-solid fa-search absolute left-3.5 top-3.5 text-slate-400"></i>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1.5">* รองรับการกรองข้อมูลแบบ Real-time</p>
+            </div>
+
+            <!-- Main Filter Panel -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col gap-4">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-blue-600"></i>
+                        <span>แผงควบคุมตัวกรอง</span>
+                    </h2>
+                    <button onclick="resetFilters()" class="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline flex items-center gap-1">
+                        <i class="fa-solid fa-rotate-left"></i> รีเซ็ต
+                    </button>
+                </div>
+
+                <!-- Month & Year Filter -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">เลือกเดือนและปีพุทธศักราช</label>
+                    <select id="filterMonth" onchange="changeMonthYear()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <!-- Will populated by JS -->
+                    </select>
+                </div>
+
+                <!-- Recorder Filter -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">ชื่อผู้เช็ค / บันทึกข้อมูล</label>
+                    <select id="filterRecorder" onchange="applyFilters()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="all">ทั้งหมด ทุกคน</option>
+                        <!-- Will populated dynamically -->
+                    </select>
+                </div>
+
+                <!-- Advanced Checkbox Filters -->
+                <div class="space-y-2.5 pt-2">
+                    <label class="block text-xs font-semibold text-slate-600">ตัวกรองคุณลักษณะ</label>
+                    
+                    <!-- Only issues -->
+                    <label class="flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                        <input type="checkbox" id="filterIssues" onchange="applyFilters()" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+                        <span class="text-sm text-slate-700">เฉพาะฟิล์มที่มีปัญหา (พบบันทึก)</span>
+                    </label>
+
+                    <!-- Unrecorded days only -->
+                    <label class="flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                        <input type="checkbox" id="filterUnrecorded" onchange="applyFilters()" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+                        <span class="text-sm text-slate-700">วันที่ยังไม่มีการเช็ค / บันทึก</span>
+                    </label>
+
+                    <!-- Issue status check status dropdown -->
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">สถานะปัญหา (หมายเหตุ)</label>
+                        <select id="filterIssueStatus" onchange="applyFilters()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">ทั้งหมด</option>
+                            <option value="pending">พบปัญหา (ยังไม่ได้รับการแก้ไข)</option>
+                            <option value="resolved">ได้รับการแก้ไขแล้ว</option>
+                            <option value="normal">ฟิล์มปกติ / ไม่มีปัญหา</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import / Export Actions -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80">
+                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-file-excel text-emerald-600"></i>
+                    <span>การจัดการข้อมูลนำเข้า-ส่งออก</span>
+                </h2>
+                
+                <div class="space-y-3">
+                    <!-- Export Button -->
+                    <button onclick="exportToExcel()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-4 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-download"></i>
+                        <span>ส่งออกเป็น Excel (.xlsx)</span>
+                    </button>
+                    
+                    <!-- Import Area -->
+                    <div class="border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-xl p-3 text-center cursor-pointer relative transition-all bg-slate-50/50">
+                        <input type="file" id="importFile" accept=".csv, .xlsx" onchange="handleFileImport(event)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                        <div class="flex flex-col items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-cloud-arrow-up text-xl text-slate-400"></i>
+                            <span class="text-xs font-semibold text-slate-600">นำเข้าไฟล์เช็คฟิล์ม</span>
+                            <span class="text-[10px] text-slate-400">รองรับไฟล์ CSV หรือ Excel (.xlsx)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Info Widget -->
+            <div class="bg-gradient-to-br from-blue-900 to-indigo-950 p-5 rounded-2xl shadow-sm text-white relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 opacity-10">
+                    <i class="fa-solid fa-shield-halved text-9xl"></i>
+                </div>
+                <h3 class="font-bold text-sm mb-1 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-check text-blue-400"></i>
+                    <span>ระบบรองรับ GAS สมบูรณ์</span>
+                </h3>
+                <p class="text-xs text-blue-200 leading-relaxed">
+                    คุณสามารถคัดลอก HTML โค้ดนี้ไปเปิดใช้งานบน Google Apps Script และสามารถผูกเข้ากับ Google Sheets เพื่อบันทึกข้อมูลถาวรได้ทันที
+                </p>
+            </div>
+        </aside>
+
+        <!-- Main Dashboard Panel (Right Side) -->
+        <main class="flex-1 flex flex-col gap-6">
+            
+            <!-- Statistical Summary Cards -->
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <!-- Card 1: Total Days checked -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                    <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                        <i class="fa-solid fa-calendar-check text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase">เช็คฟิล์มแล้ว</p>
+                        <h4 class="text-2xl font-bold text-slate-700" id="statChecked">0 วัน</h4>
+                        <span class="text-[11px] text-blue-600 font-medium" id="statCheckedPercent">0% ของเดือน</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Unrecorded days -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                    <div class="p-3 bg-slate-100 text-slate-500 rounded-xl">
+                        <i class="fa-solid fa-calendar-minus text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase">ยังไม่บันทึก</p>
+                        <h4 class="text-2xl font-bold text-slate-700" id="statUnrecorded">0 วัน</h4>
+                        <span class="text-[11px] text-slate-500 font-medium" id="statUnrecordedPercent">0% ของเดือน</span>
+                    </div>
+                </div>
+
+                <!-- Card 3: Film Issues -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                    <div class="p-3 bg-red-50 text-red-500 rounded-xl">
+                        <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase">พบฟิล์มมีปัญหา</p>
+                        <h4 class="text-2xl font-bold text-red-600" id="statProblems">0 ราย</h4>
+                        <span class="text-[11px] text-red-500 font-medium" id="statProblemPercent">0% ของฟิล์มทั้งหมด</span>
+                    </div>
+                </div>
+
+                <!-- Card 4: Resolved Issues -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                    <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                        <i class="fa-solid fa-check-double text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase">แก้ไขแล้วเสร็จ</p>
+                        <h4 class="text-2xl font-bold text-emerald-600" id="statResolved">0 ราย</h4>
+                        <span class="text-[11px] text-emerald-600 font-medium" id="statResolvedPercent">0% ของฟิล์มมีปัญหา</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Calendar Section (Main Interface) -->
+            <section class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-regular fa-calendar-days text-blue-600"></i>
+                            <span>ปฏิทินแสดงสถานะการเช็ครายวัน:</span>
+                            <span id="calendarCurrentMonthText" class="text-blue-700 font-extrabold"></span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">คลิกที่วันที่แต่ละช่อง เพื่อระบุผลตรวจเช็คฟิล์ม หรือแก้ไขบันทึก</p>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="flex flex-wrap gap-3 text-xs">
+                        <div class="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                            <span class="w-3 h-3 rounded-full bg-blue-600 block"></span>
+                            <span class="text-slate-600">บันทึกเรียบร้อย</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                            <span class="w-3 h-3 rounded-full bg-amber-500 block"></span>
+                            <span class="text-slate-600">มีปัญหา/รอแก้</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500 block"></span>
+                            <span class="text-slate-600">แก้ไขเรียบร้อยแล้ว</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                            <span class="w-3 h-3 rounded-full bg-slate-200 block"></span>
+                            <span class="text-slate-600">ยังไม่มีบันทึก</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar Grid Header (Days of week) -->
+                <div class="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold text-slate-500 tracking-wider">
+                    <div>อา.</div>
+                    <div>จ.</div>
+                    <div>อ.</div>
+                    <div>พ.</div>
+                    <div>พฤ.</div>
+                    <div>ศ.</div>
+                    <div>ส.</div>
+                </div>
+
+                <!-- Calendar Days Grid -->
+                <div id="calendarGrid" class="grid grid-cols-7 gap-2">
+                    <!-- Dynamic rendering -->
+                </div>
+            </section>
+
+            <!-- Chart & Visual Analysis Block -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Chart 1: Quality Status of Films -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-[320px]">
+                    <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-blue-600"></i>
+                        <span>สัดส่วนผลการเช็คฟิล์มเอกซเรย์ในเดือนนี้</span>
+                    </h3>
+                    <div class="flex-1 relative flex items-center justify-center">
+                        <canvas id="qualityStatusChart" class="max-h-[220px]"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Top issues classification -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-[320px]">
+                    <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-bar text-blue-600"></i>
+                        <span>จำนวนปัญหาแยกตามสถานะของหมายเหตุ</span>
+                    </h3>
+                    <div class="flex-1 relative flex items-center justify-center">
+                        <canvas id="recorderStatisticsChart" class="max-h-[220px]"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Table of Filtered Records -->
+            <section class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-table text-blue-600"></i>
+                            <span>ตารางบันทึกการเช็คข้อมูลอย่างละเอียด</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5" id="filteredRecordCount">พบ 0 รายการ จากตัวกรองปัจจุบัน</p>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500">เรียงตาม:</span>
+                        <select id="sortOrder" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-blue-500">
+                            <option value="asc">วันที่: น้อย -> มาก</option>
+                            <option value="desc" selected>วันที่: มาก -> น้อย</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 border-b border-slate-100 text-xs font-semibold uppercase">
+                                <th class="p-4 w-28">ว/ด/ป ของฟิล์ม</th>
+                                <th class="p-4 w-32">Marker ถูกข้าง/ตำแหน่ง</th>
+                                <th class="p-4 w-28">ผู้เช็คบันทึก</th>
+                                <th class="p-4">รายละเอียดความผิดปกติ / หมายเหตุ</th>
+                                <th class="p-4 w-28 text-center">แก้ไขแล้ว?</th>
+                                <th class="p-4 w-24 text-right">ดำเนินการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsTableBody" class="divide-y divide-slate-100">
+                            <!-- Dynamic Content -->
+                        </tbody>
+                    </table>
+                    
+                    <!-- Empty State -->
+                    <div id="emptyTableState" class="hidden p-8 text-center flex flex-col items-center justify-center gap-3">
+                        <i class="fa-regular fa-folder-open text-4xl text-slate-300"></i>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-600">ไม่พบรายการข้อมูลที่ค้นหา</p>
+                            <p class="text-xs text-slate-400">กรุณาลองรีเซ็ตตัวกรองหรือเปลี่ยนเดือนที่ใช้งาน</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Edit/Add Modal Dialog -->
+    <div id="recordModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden transform transition-all duration-300 scale-95 opacity-0" id="modalContainer">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-blue-900 to-indigo-900 text-white px-6 py-4 flex justify-between items-center">
+                <h3 class="font-bold flex items-center gap-2 text-base">
+                    <i class="fa-solid fa-file-medical text-blue-300"></i>
+                    <span id="modalTitle">บันทึกประวัติการเช็คฟิล์มรายวัน</span>
+                </h3>
+                <button onclick="closeRecordModal()" class="text-white/80 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Form -->
+            <form id="recordForm" onsubmit="saveRecordForm(event)" class="p-6 space-y-4">
+                <input type="hidden" id="formOriginalDate" />
+                <input type="hidden" id="formIsEdit" value="false" />
+
+                <!-- Date -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">ว/ด/ป (พุทธศักราช)</label>
+                    <input type="text" id="formDate" required placeholder="เช่น 1 พ.ค. 69" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p class="text-[10px] text-slate-400 mt-1">* รูปแบบที่ต้องการ: "วัน เดือน ย่อ. ปีสองหลัก" เช่น "7 มี.ค. 69"</p>
+                </div>
+
+                <!-- Marker Flag Check -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="formMarkerCheck" checked class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+                        <div>
+                            <span class="text-sm font-semibold text-slate-700 block">Marker ถูกข้าง/ถูกตำแหน่ง</span>
+                            <span class="text-xs text-slate-400">ระบุตำแหน่งของฝั่งซ้าย-ขวา แผ่นฟิล์มเอกซเรย์ได้อย่างถูกต้อง</span>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Recorder/Checker Name -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">ชื่อผู้ตรวจสอบ (Checker)</label>
+                    <input type="text" id="formRecorder" required placeholder="ระบุชื่อเจ้าหน้าที่" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                <!-- Remarks (Issues detail) -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">ความผิดปกติที่พบบนฟิล์ม / หมายเหตุ</label>
+                    <textarea id="formRemarks" rows="3" placeholder="ระบุเลข HN ของคนไข้ และอาการผิดปกติ เช่น HN 540191961 เกิด Motion Artifact (หากไม่มีปัญหา ให้ใส่เครื่องหมาย - )" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+
+                <!-- Fixed status check inside form -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="formResolvedCheck" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300">
+                        <div>
+                            <span class="text-sm font-semibold text-slate-700 block">แก้ไขความผิดปกตินี้เรียบร้อยแล้ว</span>
+                            <span class="text-xs text-slate-400">เลือกข้อนี้หากปัญหาของฟิล์มข้างต้นได้รับการแก้ไขกับห้องแพทย์เรียบร้อยแล้ว</span>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex justify-end items-center gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeRecordModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-colors">ยกเลิก</button>
+                    <button type="submit" class="px-5 py-2 bg-gradient-to-r from-blue-700 to-indigo-800 text-white text-sm font-bold rounded-xl shadow-md hover:from-blue-800 hover:to-indigo-900 transition-all">บันทึกข้อมูล</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification system toast -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 z-50 transform translate-y-12 opacity-0 pointer-events-none transition-all duration-300">
+        <div class="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700">
+            <span id="toastIcon" class="text-blue-400 text-lg"></span>
+            <span id="toastMessage" class="text-xs sm:text-sm font-medium"></span>
+        </div>
+    </div>
+
+    <footer class="bg-slate-900 text-slate-400 py-6 text-center border-t border-slate-800 text-xs">
+        <p>© 2026 ระบบเช็คฟิล์มนอกเวลา - แผนกรังสีวินิจฉัย โรงพยาบาลปวงชน | พัฒนาขึ้นเพื่อทำงานร่วมกับ GAS และ Google Sheets</p>
+    </footer>
+
+    <!-- Core Javascript Code -->
+    <script>
+        // Global State storing all the loaded records from uploaded files
+        let allRecords = [];
+        let monthsAvailable = [];
+        let currentYearSelected = "69"; // Default year
+        let currentMonthSelected = "พ.ค. 69"; // Initial selection
+        let qualityChartInstance = null;
+        let recorderChartInstance = null;
+
+        // --- Mock Data: Initializing records using actual contents of uploaded CSV files ---
+        const initialMockData = [
+            // พ.ค. 69 (จาก ตารางเช็คฟิล์มนอกเวลา - พ.ค.-มิ.ย.69.csv)
+            { date: "1 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "2 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "3 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "4 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "5 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "6 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "7 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "HN 660324306 Motion Artifact ชัด", resolved: "FALSE" },
+            { date: "8 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "9 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "10 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "11 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "12 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "13 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "14 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "15 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "16 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "17 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "HN 660324320 Right Shoulder AP ไม่ชัด", resolved: "FALSE" },
+            { date: "18 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "19 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "20 พ.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            
+            // มิ.ย. 69
+            { date: "1 มิ.ย. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "2 มิ.ย. 69", marker: "TRUE", checker: "นงนภัส", remarks: "HN 660325400 ภาพสั่นเบลอเล็กน้อย", resolved: "TRUE" },
+            { date: "3 มิ.ย. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "4 มิ.ย. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "5 มิ.ย. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "6 มิ.ย. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+
+            // มี.ค. 69 (จาก ตารางเช็คฟิล์มนอกเวลา - ก.พ.-เม.ย. 69.csv)
+            { date: "1 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "2 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "19 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "HN 690503570 Lt.Knee (Lateral) ภาพ flip", resolved: "FALSE" },
+            { date: "20 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "HN 540187314 Lt.Wrist (Lateral) flip ภาพ flip", resolved: "FALSE" },
+            { date: "21 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "- HN490022683 Both Hip AP, Lt.Femur AP เลข Accession ซ้ำกัน\n- HN690342889 Lt.Knee (AP) ภาพ flip\n- HN690342901 Lt.Ankle AP ไม่ได้ flip ภาพ + เลข Accession ซ้ำกัน", resolved: "FALSE" },
+            { date: "22 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "23 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "24 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "25 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "HN690503615 ไม่ได้แก้ออเดอร์ให้ถูกข้าง", resolved: "FALSE" },
+            { date: "26 มี.ค. 69", marker: "TRUE", checker: "นงนภัส", remarks: "HN490048747 Rt.shoulder transcapula ไม่ได้กลับฟิล์ม", resolved: "FALSE" },
+
+            // ก.พ. 69
+            { date: "22 ก.พ. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "23 ก.พ. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "24 ก.พ. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "25 ก.พ. 69", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "26 ก.พ. 69", marker: "TRUE", checker: "นงนภัส", remarks: "เลข Assession ซ้ำกัน HN540191961 (แก้ไขแล้ว)", resolved: "TRUE" },
+            { date: "27 ก.พ. 69", marker: "TRUE", checker: "นงนภัส", remarks: "ไม่ได้ใส่ Marker Abdomen upright HN690498475 (แก้ไขแล้ว)", resolved: "TRUE" },
+            { date: "28 ก.พ. 69", marker: "TRUE", checker: "นงนภัส", remarks: "Film Skull Lateral (HN690342455) เกิด Motion Artifact", resolved: "FALSE" },
+
+            // ต.ค. 68 (จาก ตารางเช็คฟิล์มนอกเวลา - ต.ค. 68.csv)
+            { date: "1 ต.ค. 68", marker: "TRUE", checker: "นงนภัส", remarks: "HN 550193514 ไม่ได้ flip ภาพ Rt.Knee (แก้แล้ว)", resolved: "TRUE" },
+            { date: "2 ต.ค. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "3 ต.ค. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "4 ต.ค. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "5 ต.ค. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "6 ต.ค. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+
+            // ก.ย. 68
+            { date: "18 ก.ย. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "19 ก.ย. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "20 ก.ย. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" },
+            { date: "21 ก.ย. 68", marker: "TRUE", checker: "นงนภัส", remarks: "-", resolved: "TRUE" }
+        ];
+
+        // Mapping Thai month abbreviations to numbers for calendar rendering
+        const thMonthsFull = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+        const thMonthsShort = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+        window.onload = function() {
+            allRecords = [...initialMockData];
+            detectAvailableMonths();
+            populateMonthsDropdown();
+            
+            // Default to the first month in list or พ.ค. 69
+            if (monthsAvailable.includes("พ.ค. 69")) {
+                currentMonthSelected = "พ.ค. 69";
+            } else if (monthsAvailable.length > 0) {
+                currentMonthSelected = monthsAvailable[0];
+            }
+            
+            document.getElementById("filterMonth").value = currentMonthSelected;
+            populateRecorderDropdown();
+            renderDashboard();
+            
+            showToast("ยินดีต้อนรับ! ระบบพร้อมใช้งานแล้ว", "fa-solid fa-circle-check");
+        };
+
+        // Scan available months in the records
+        function detectAvailableMonths() {
+            const monthsSet = new Set();
+            allRecords.forEach(r => {
+                const parts = r.date.trim().split(" ");
+                if (parts.length >= 3) {
+                    const monthYear = parts[1] + " " + parts[2];
+                    monthsSet.add(monthYear);
+                }
+            });
+            // Ensure some default months are present anyway
+            monthsSet.add("ก.พ. 69");
+            monthsSet.add("มี.ค. 69");
+            monthsSet.add("เม.ย. 69");
+            monthsSet.add("พ.ค. 69");
+            monthsSet.add("มิ.ย. 69");
+            monthsSet.add("ก.ย. 68");
+            monthsSet.add("ต.ค. 68");
+
+            monthsAvailable = Array.from(monthsSet).sort((a, b) => {
+                const partsA = a.split(" ");
+                const partsB = b.split(" ");
+                const yearDiff = parseInt(partsA[1]) - parseInt(partsB[1]);
+                if (yearDiff !== 0) return yearDiff;
+                return thMonthsShort.indexOf(partsA[0]) - thMonthsShort.indexOf(partsB[0]);
+            });
+        }
+
+        function populateMonthsDropdown() {
+            const dropdown = document.getElementById("filterMonth");
+            dropdown.innerHTML = "";
+            monthsAvailable.forEach(m => {
+                const option = document.createElement("option");
+                option.value = m;
+                option.textContent = m;
+                dropdown.appendChild(option);
+            });
+        }
+
+        function populateRecorderDropdown() {
+            const dropdown = document.getElementById("filterRecorder");
+            const recorders = new Set();
+            allRecords.forEach(r => {
+                if (r.checker && r.checker !== "-") recorders.add(r.checker);
+            });
+
+            dropdown.innerHTML = '<option value="all">ทั้งหมด ทุกคน</option>';
+            recorders.forEach(rec => {
+                const option = document.createElement("option");
+                option.value = rec;
+                option.textContent = rec;
+                dropdown.appendChild(option);
+            });
+        }
+
+        function changeMonthYear() {
+            currentMonthSelected = document.getElementById("filterMonth").value;
+            renderDashboard();
+        }
+
+        function resetFilters() {
+            document.getElementById("searchQuery").value = "";
+            document.getElementById("filterRecorder").value = "all";
+            document.getElementById("filterIssues").checked = false;
+            document.getElementById("filterUnrecorded").checked = false;
+            document.getElementById("filterIssueStatus").value = "all";
+            applyFilters();
+            showToast("รีเซ็ตตัวกรองทั้งหมดแล้ว", "fa-solid fa-rotate-left");
+        }
+
+        // Apply visual logic based on filters and render list and stats
+        function getFilteredRecords() {
+            // Get selected month/year parts
+            const parts = currentMonthSelected.split(" ");
+            const targetMonthShort = parts[0]; // e.g., "พ.ค."
+            const targetYear = parts[1]; // e.g., "69"
+
+            return allRecords.filter(r => {
+                const rParts = r.date.trim().split(" ");
+                if (rParts.length < 3) return false;
+                
+                const monthMatch = rParts[1] === targetMonthShort;
+                const yearMatch = rParts[2] === targetYear;
+                
+                if (!monthMatch || !yearMatch) return false;
+
+                // 1. Text Search query (HN, Patient name, order number, etc.)
+                const q = document.getElementById("searchQuery").value.toLowerCase().trim();
+                if (q !== "") {
+                    const textMatch = r.remarks.toLowerCase().includes(q) || 
+                                      r.checker.toLowerCase().includes(q) || 
+                                      r.date.toLowerCase().includes(q);
+                    if (!textMatch) return false;
+                }
+
+                // 2. Recorder Filter
+                const recFilter = document.getElementById("filterRecorder").value;
+                if (recFilter !== "all" && r.checker !== recFilter) return false;
+
+                // 3. Issue Flag Checked
+                const onlyIssues = document.getElementById("filterIssues").checked;
+                const hasIssue = r.remarks !== "-" && r.remarks !== "" && r.remarks.trim() !== "ไม่มี";
+                if (onlyIssues && !hasIssue) return false;
+
+                // 4. Issue Status Dropdown Filter
+                const issueStatus = document.getElementById("filterIssueStatus").value;
+                if (issueStatus === "pending") {
+                    if (!hasIssue || r.resolved === "TRUE") return false;
+                } else if (issueStatus === "resolved") {
+                    if (!hasIssue || r.resolved !== "TRUE") return false;
+                } else if (issueStatus === "normal") {
+                    if (hasIssue) return false;
+                }
+
+                return true;
+            });
+        }
+
+        // Apply filters instantly
+        function applyFilters() {
+            renderDashboard();
+        }
+
+        // Big Render Orchestration
+        function renderDashboard() {
+            const filtered = getFilteredRecords();
+            renderStats(filtered);
+            renderCalendar();
+            renderTable(filtered);
+            renderCharts(filtered);
+        }
+
+        // Render Top Statistics Cards
+        function renderStats(filteredList) {
+            const parts = currentMonthSelected.split(" ");
+            const targetMonthShort = parts[0];
+            const targetYear = parts[1];
+            const monthIndex = thMonthsShort.indexOf(targetMonthShort);
+            const isLeapYear = (2500 + parseInt(targetYear) - 543) % 4 === 0;
+            
+            let daysInMonth = 30;
+            if ([0, 2, 4, 6, 7, 9, 11].includes(monthIndex)) daysInMonth = 31;
+            else if (monthIndex === 1) daysInMonth = isLeapYear ? 29 : 28;
+
+            // Compute Stats
+            // Get all records in this month in total (unfiltered by side filters except month)
+            const allInMonth = allRecords.filter(r => {
+                const rParts = r.date.trim().split(" ");
+                return rParts.length >= 3 && rParts[1] === targetMonthShort && rParts[2] === targetYear;
+            });
+
+            const totalChecked = allInMonth.length;
+            const unrecorded = Math.max(0, daysInMonth - totalChecked);
+
+            // Calculate ratios
+            const checkedPercent = daysInMonth > 0 ? Math.round((totalChecked / daysInMonth) * 100) : 0;
+            const unrecordedPercent = daysInMonth > 0 ? Math.round((unrecorded / daysInMonth) * 100) : 0;
+
+            // Issues logic
+            const problemRecords = allInMonth.filter(r => r.remarks !== "-" && r.remarks !== "" && r.remarks.trim() !== "ไม่มี");
+            const totalProblems = problemRecords.length;
+            const problemPercent = totalChecked > 0 ? Math.round((totalProblems / totalChecked) * 100) : 0;
+
+            const resolvedProblems = problemRecords.filter(r => r.resolved === "TRUE").length;
+            const resolvedPercent = totalProblems > 0 ? Math.round((resolvedProblems / totalProblems) * 100) : 0;
+
+            // Update DOM Elements
+            document.getElementById("statChecked").textContent = `${totalChecked} วัน`;
+            document.getElementById("statCheckedPercent").textContent = `${checkedPercent}% ของเดือน (${daysInMonth} วัน)`;
+
+            document.getElementById("statUnrecorded").textContent = `${unrecorded} วัน`;
+            document.getElementById("statUnrecordedPercent").textContent = `${unrecordedPercent}% ของเดือน`;
+
+            document.getElementById("statProblems").textContent = `${totalProblems} ราย`;
+            document.getElementById("statProblemPercent").textContent = `${problemPercent}% ของการเช็คทั้งหมด`;
+
+            document.getElementById("statResolved").textContent = `${resolvedProblems} ราย`;
+            document.getElementById("statResolvedPercent").textContent = `${resolvedPercent}% แก้ไขสำเร็จ`;
+        }
+
+        // Generate Calendar Day Elements
+        function renderCalendar() {
+            const grid = document.getElementById("calendarGrid");
+            grid.innerHTML = "";
+
+            const parts = currentMonthSelected.split(" ");
+            const targetMonthShort = parts[0]; // e.g. "พ.ค."
+            const targetYear = parts[1]; // e.g. "69"
+            
+            const monthIndex = thMonthsShort.indexOf(targetMonthShort);
+            const engYear = 2000 + parseInt(targetYear) - 57; // Transform Thai Buddhist year to normal Gregorian
+            
+            // Build absolute Date object to check day of week for start padding
+            const firstDayOfMonth = new Date(engYear, monthIndex, 1);
+            const startDayOfWeek = firstDayOfMonth.getDay(); // 0 is Sunday, 6 is Saturday
+
+            // Total days count
+            const isLeapYear = engYear % 4 === 0;
+            let daysInMonth = 30;
+            if ([0, 2, 4, 6, 7, 9, 11].includes(monthIndex)) daysInMonth = 31;
+            else if (monthIndex === 1) daysInMonth = isLeapYear ? 29 : 28;
+
+            document.getElementById("calendarCurrentMonthText").textContent = thMonthsFull[monthIndex] + " พ.ศ. 25" + targetYear;
+
+            // Padding Days (Empty cells)
+            for (let i = 0; i < startDayOfWeek; i++) {
+                const emptyCell = document.createElement("div");
+                emptyCell.className = "h-20 bg-slate-50 border border-slate-100 rounded-lg opacity-40";
+                grid.appendChild(emptyCell);
+            }
+
+            // Day cells rendering
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = `${day} ${targetMonthShort} ${targetYear}`;
+                const foundRecord = allRecords.find(r => r.date.trim() === dateString);
+
+                // Check filter parameters to see if this cell matches highlight or opacity
+                const isFilteredUnrecorded = document.getElementById("filterUnrecorded").checked;
+                let opacityClass = "opacity-100";
+                
+                if (isFilteredUnrecorded && foundRecord) {
+                    opacityClass = "opacity-30";
+                }
+
+                const cell = document.createElement("div");
+                cell.className = `h-20 p-2 rounded-xl border flex flex-col justify-between cursor-pointer transition-all transform hover:scale-[1.03] hover:shadow-md ${opacityClass}`;
+                
+                let innerHTML = `<span class="text-xs font-bold text-slate-500">${day}</span>`;
+
+                if (foundRecord) {
+                    const hasIssue = foundRecord.remarks !== "-" && foundRecord.remarks !== "" && foundRecord.remarks.trim() !== "ไม่มี";
+                    
+                    if (hasIssue) {
+                        if (foundRecord.resolved === "TRUE") {
+                            // Resolved status
+                            cell.className += " bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-950";
+                            innerHTML += `
+                                <div class="flex flex-col items-end">
+                                    <span class="text-[9px] bg-emerald-500 text-white font-bold px-1.5 py-0.5 rounded">แก้ไขแล้ว</span>
+                                    <span class="text-[9px] truncate max-w-full text-emerald-700 mt-1">${foundRecord.checker}</span>
+                                </div>`;
+                        } else {
+                            // Pending Issue status
+                            cell.className += " bg-amber-50 border-amber-300 hover:bg-amber-100 text-amber-950 animate-pulse-slow";
+                            innerHTML += `
+                                <div class="flex flex-col items-end">
+                                    <span class="text-[9px] bg-amber-500 text-white font-bold px-1.5 py-0.5 rounded">มีปัญหา</span>
+                                    <span class="text-[9px] truncate max-w-full text-amber-700 mt-1">${foundRecord.checker}</span>
+                                </div>`;
+                        }
+                    } else {
+                        // Normal checked status
+                        cell.className += " bg-blue-50 border-blue-200 hover:bg-blue-100 text-blue-950";
+                        innerHTML += `
+                            <div class="flex flex-col items-end">
+                                <span class="text-[9px] bg-blue-600 text-white font-bold px-1.5 py-0.5 rounded">บันทึกแล้ว</span>
+                                <span class="text-[9px] truncate max-w-full text-blue-700 mt-1">${foundRecord.checker}</span>
+                            </div>`;
+                    }
+                    
+                    // Add click event for Editing
+                    cell.onclick = () => openEditModal(foundRecord);
+                } else {
+                    // Unrecorded day status
+                    cell.className += " bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-400";
+                    innerHTML += `
+                        <div class="flex flex-col items-end">
+                            <span class="text-[9px] bg-slate-300 text-slate-600 font-bold px-1.5 py-0.5 rounded">ว่าง</span>
+                        </div>`;
+                    
+                    // Add click event for Adding brand new record
+                    cell.onclick = () => openAddModalWithDate(dateString);
+                }
+
+                cell.innerHTML = innerHTML;
+                grid.appendChild(cell);
+            }
+        }
+
+        // Render Bottom Detail Table
+        function renderTable(filteredList) {
+            const tbody = document.getElementById("recordsTableBody");
+            const emptyState = document.getElementById("emptyTableState");
+            tbody.innerHTML = "";
+
+            // Sort logic
+            const sortOrder = document.getElementById("sortOrder").value;
+            filteredList.sort((a, b) => {
+                const dayA = parseInt(a.date.split(" ")[0]);
+                const dayB = parseInt(b.date.split(" ")[0]);
+                return sortOrder === "asc" ? dayA - dayB : dayB - dayA;
+            });
+
+            document.getElementById("filteredRecordCount").textContent = `พบ ${filteredList.length} รายการ จากตัวกรองปัจจุบัน`;
+
+            if (filteredList.length === 0) {
+                emptyState.classList.remove("hidden");
+                return;
+            }
+            emptyState.classList.add("hidden");
+
+            filteredList.forEach(r => {
+                const hasIssue = r.remarks !== "-" && r.remarks !== "" && r.remarks.trim() !== "ไม่มี";
+                const isMarkerTrue = r.marker === "TRUE" || r.marker === true;
+
+                const tr = document.createElement("tr");
+                tr.className = "hover:bg-slate-50/80 transition-colors";
+
+                let markerBadge = isMarkerTrue 
+                    ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200"><i class="fa-solid fa-circle-check"></i> ถูกต้อง</span>`
+                    : `<span class="inline-flex items-center gap-1 text-[11px] font-semibold bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200"><i class="fa-solid fa-circle-xmark"></i> ผิดพลาด</span>`;
+
+                let issueBadge = "-";
+                if (hasIssue) {
+                    if (r.resolved === "TRUE" || r.resolved === true) {
+                        issueBadge = `<span class="inline-flex items-center gap-1 text-xs font-bold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-md"><i class="fa-solid fa-check-circle"></i> แก้ไขเสร็จ</span>`;
+                    } else {
+                        issueBadge = `<span class="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-md"><i class="fa-solid fa-triangle-exclamation"></i> รอแก้ไข</span>`;
+                    }
+                }
+
+                tr.innerHTML = `
+                    <td class="p-4 font-semibold text-slate-700">${r.date}</td>
+                    <td class="p-4">${markerBadge}</td>
+                    <td class="p-4 font-medium text-slate-600">${r.checker || "-"}</td>
+                    <td class="p-4 text-xs text-slate-500 font-medium whitespace-pre-line">${r.remarks}</td>
+                    <td class="p-4 text-center">${issueBadge}</td>
+                    <td class="p-4 text-right">
+                        <button onclick="openEditModal(${JSON.stringify(r).replace(/"/g, '&quot;')})" class="text-blue-600 hover:text-blue-900 font-bold text-xs bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1">
+                            <i class="fa-regular fa-edit"></i> แก้ไข
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Render charts using Chart.js
+        function renderCharts(filteredList) {
+            // Destroy existing charts to prevent duplication issues
+            if (qualityChartInstance) qualityChartInstance.destroy();
+            if (recorderChartInstance) recorderChartInstance.destroy();
+
+            // Computations for Chart 1 (Pie/Doughnut)
+            let normalCount = 0;
+            let pendingCount = 0;
+            let resolvedCount = 0;
+
+            filteredList.forEach(r => {
+                const hasIssue = r.remarks !== "-" && r.remarks !== "" && r.remarks.trim() !== "ไม่มี";
+                if (!hasIssue) {
+                    normalCount++;
+                } else if (r.resolved === "TRUE" || r.resolved === true) {
+                    resolvedCount++;
+                } else {
+                    pendingCount++;
+                }
+            });
+
+            // If empty, put default mocks so chart renders something nice
+            const qualityData = (normalCount === 0 && pendingCount === 0 && resolvedCount === 0) 
+                ? [1, 0, 0] 
+                : [normalCount, pendingCount, resolvedCount];
+
+            const ctx1 = document.getElementById("qualityStatusChart").getContext("2d");
+            qualityChartInstance = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: ['ฟิล์มปกติ (เรียบร้อย)', 'พบปัญหา (รอการแก้ไข)', 'พบปัญหา (แก้ไขแล้ว)'],
+                    datasets: [{
+                        data: qualityData,
+                        backgroundColor: ['#2563eb', '#f59e0b', '#10b981'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 11, family: 'Sarabun' }
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+
+            // Computations for Chart 2 (Bar Chart)
+            // Show number of issues per checker/recorder
+            const recordersIssues = {};
+            filteredList.forEach(r => {
+                const checker = r.checker || "ไม่ระบุ";
+                if (!recordersIssues[checker]) {
+                    recordersIssues[checker] = { total: 0, issues: 0 };
+                }
+                recordersIssues[checker].total++;
+                const hasIssue = r.remarks !== "-" && r.remarks !== "" && r.remarks.trim() !== "ไม่มี";
+                if (hasIssue) recordersIssues[checker].issues++;
+            });
+
+            const labels2 = Object.keys(recordersIssues);
+            const dataTotal = labels2.map(k => recordersIssues[k].total);
+            const dataIssues = labels2.map(k => recordersIssues[k].issues);
+
+            const ctx2 = document.getElementById("recorderStatisticsChart").getContext("2d");
+            recorderChartInstance = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: labels2.length > 0 ? labels2 : ['ไม่มีข้อมูล'],
+                    datasets: [
+                        {
+                            label: 'เช็คฟิล์มทั้งหมด (วัน)',
+                            data: dataTotal.length > 0 ? dataTotal : [0],
+                            backgroundColor: '#93c5fd'
+                        },
+                        {
+                            label: 'พบปัญหาความผิดปกติ (ราย)',
+                            data: dataIssues.length > 0 ? dataIssues : [0],
+                            backgroundColor: '#f59e0b'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                font: { family: 'Sarabun', size: 10 }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: { family: 'Sarabun', size: 10 }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 11, family: 'Sarabun' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- MODAL DIALOG CONTROLS ---
+
+        function openAddModal() {
+            document.getElementById("formIsEdit").value = "false";
+            document.getElementById("modalTitle").textContent = "บันทึกประวัติเช็คฟิล์มรายใหม่";
+            
+            // Set date to current day/month/year by default
+            const dayNum = new Date().getDate();
+            const parts = currentMonthSelected.split(" ");
+            document.getElementById("formDate").value = `${dayNum} ${parts[0]} ${parts[1]}`;
+            
+            document.getElementById("formMarkerCheck").checked = true;
+            document.getElementById("formRecorder").value = "";
+            document.getElementById("formRemarks").value = "-";
+            document.getElementById("formResolvedCheck").checked = false;
+
+            showModal();
+        }
+
+        function openAddModalWithDate(dateStr) {
+            document.getElementById("formIsEdit").value = "false";
+            document.getElementById("modalTitle").textContent = `บันทึกเช็คฟิล์มใหม่ สำหรับวันที่ ${dateStr}`;
+            document.getElementById("formDate").value = dateStr;
+            document.getElementById("formMarkerCheck").checked = true;
+            document.getElementById("formRecorder").value = "";
+            document.getElementById("formRemarks").value = "-";
+            document.getElementById("formResolvedCheck").checked = false;
+
+            showModal();
+        }
+
+        function openEditModal(record) {
+            document.getElementById("formIsEdit").value = "true";
+            document.getElementById("formOriginalDate").value = record.date;
+            document.getElementById("modalTitle").textContent = `แก้ไขประวัติเช็คฟิล์ม: ${record.date}`;
+            
+            document.getElementById("formDate").value = record.date;
+            document.getElementById("formMarkerCheck").checked = (record.marker === "TRUE" || record.marker === true);
+            document.getElementById("formRecorder").value = record.checker;
+            document.getElementById("formRemarks").value = record.remarks;
+            document.getElementById("formResolvedCheck").checked = (record.resolved === "TRUE" || record.resolved === true);
+
+            showModal();
+        }
+
+        function showModal() {
+            const modal = document.getElementById("recordModal");
+            const container = document.getElementById("modalContainer");
+            modal.classList.remove("hidden");
+            setTimeout(() => {
+                container.classList.remove("scale-95", "opacity-0");
+                container.classList.add("scale-100", "opacity-100");
+            }, 50);
+        }
+
+        function closeRecordModal() {
+            const container = document.getElementById("modalContainer");
+            container.classList.remove("scale-100", "opacity-100");
+            container.classList.add("scale-95", "opacity-0");
+            setTimeout(() => {
+                document.getElementById("recordModal").classList.add("hidden");
+            }, 200);
+        }
+
+        // Save action inside Form
+        function saveRecordForm(event) {
+            event.preventDefault();
+
+            const isEdit = document.getElementById("formIsEdit").value === "true";
+            const originalDate = document.getElementById("formOriginalDate").value;
+
+            const date = document.getElementById("formDate").value.trim();
+            const marker = document.getElementById("formMarkerCheck").checked ? "TRUE" : "FALSE";
+            const checker = document.getElementById("formRecorder").value.trim();
+            const remarks = document.getElementById("formRemarks").value.trim();
+            const resolved = document.getElementById("formResolvedCheck").checked ? "TRUE" : "FALSE";
+
+            const payload = { date, marker, checker, remarks, resolved };
+
+            if (isEdit) {
+                // Find and edit index
+                const idx = allRecords.findIndex(r => r.date.trim() === originalDate.trim());
+                if (idx !== -1) {
+                    allRecords[idx] = payload;
+                }
+                showToast(`แก้ไขข้อมูลประจำวันที่ ${date} สำเร็จแล้ว`, "fa-solid fa-square-check");
+            } else {
+                // Check duplicate day in system
+                const isDuplicate = allRecords.some(r => r.date.trim() === date);
+                if (isDuplicate) {
+                    alert(`วันที่ ${date} มีข้อมูลบันทึกอยู่แล้ว! กรุณาเลือกแก้ไขข้อมูลแทน`);
+                    return;
+                }
+                allRecords.push(payload);
+                showToast(`บันทึกข้อมูลวันที่ ${date} เรียบร้อยแล้ว`, "fa-solid fa-circle-check");
+            }
+
+            // Reload configurations
+            detectAvailableMonths();
+            populateMonthsDropdown();
+            populateRecorderDropdown();
+            
+            // Sync selected month if year/month changed
+            const parts = date.split(" ");
+            if (parts.length >= 3) {
+                currentMonthSelected = parts[1] + " " + parts[2];
+                document.getElementById("filterMonth").value = currentMonthSelected;
+            }
+
+            renderDashboard();
+            closeRecordModal();
+        }
+
+        // Toast notifications
+        function showToast(msg, iconClass) {
+            const toast = document.getElementById("toastNotification");
+            const icon = document.getElementById("toastIcon");
+            const text = document.getElementById("toastMessage");
+
+            icon.className = iconClass;
+            text.textContent = msg;
+
+            toast.classList.remove("translate-y-12", "opacity-0", "pointer-events-none");
+            toast.classList.add("translate-y-0", "opacity-100");
+
+            setTimeout(() => {
+                toast.classList.remove("translate-y-0", "opacity-100");
+                toast.classList.add("translate-y-12", "opacity-0", "pointer-events-none");
+            }, 4000);
+        }
+
+        // --- EXPORT TO EXCEL SYSTEM ---
+        function exportToExcel() {
+            try {
+                const currentData = getFilteredRecords();
+                if (currentData.length === 0) {
+                    alert("ไม่มีข้อมูลที่จะส่งออกตามตัวกรองปัจจุบัน");
+                    return;
+                }
+
+                // Transform data specifically for Excel layout
+                const formatted = currentData.map(r => ({
+                    "ว/ด/ป ของฟิล์ม": r.date,
+                    "Marker ถูกข้าง/ตำแหน่ง": r.marker === "TRUE" ? "ถูกต้อง" : "ผิดพลาด",
+                    "ผู้ตรวจสอบ": r.checker,
+                    "ความผิดปกติ / หมายเหตุ": r.remarks,
+                    "สถานะปัญหา": r.remarks === "-" ? "ปกติ" : (r.resolved === "TRUE" ? "แก้ไขแล้ว" : "ยังไม่ได้แก้ไข")
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(formatted);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "บันทึกเช็คฟิล์ม");
+
+                // Generate and download file
+                const filename = `ตารางเช็คฟิล์มนอกเวลา_${currentMonthSelected.replace(/\s+/g, '_')}.xlsx`;
+                XLSX.writeFile(workbook, filename);
+                
+                showToast("ส่งออกไฟล์ Excel สำเร็จเรียบร้อย!", "fa-solid fa-file-excel");
+            } catch (err) {
+                console.error(err);
+                alert("เกิดความผิดพลาดระหว่างส่งออกไฟล์ Excel");
+            }
+        }
+
+        // --- IMPORT CSV/EXCEL FILES SYSTEM ---
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            
+            if (file.name.endsWith('.csv')) {
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    processCSVData(text);
+                };
+                reader.readAsText(file, "UTF-8");
+            } else if (file.name.endsWith('.xlsx')) {
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.SheetNames[0];
+                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { header: 1 });
+                    processExcelJSONData(jsonData);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        // Parse Standard CSV data import
+        function processCSVData(csvText) {
+            try {
+                const lines = csvText.split(/\r?\n/);
+                if (lines.length < 2) return;
+
+                // Headers parse
+                const headers = lines[0].split(",");
+                let dateIdx = 0, markerIdx = 1, checkerIdx = 2, remarksIdx = 3;
+
+                // Simple check headers
+                headers.forEach((h, i) => {
+                    const cleanH = h.trim();
+                    if (cleanH.includes("ว/ด/ป")) dateIdx = i;
+                    else if (cleanH.includes("Marker") || cleanH.includes("เช็คแล้ว")) markerIdx = i;
+                    else if (cleanH.includes("ผู้เช็ค")) checkerIdx = i;
+                    else if (cleanH.includes("หมายเหตุ")) remarksIdx = i;
+                });
+
+                let parsedCount = 0;
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (!line || line.trim() === "") continue;
+
+                    // Regex to split comma but ignore inside double quotes (remarks)
+                    const cells = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(",");
+                    if (cells.length < 2) continue;
+
+                    const dateStr = cells[dateIdx]?.replace(/"/g, '').trim();
+                    // Skip if empty row
+                    if (!dateStr || dateStr === "" || dateStr === "แก้ไขแล้ว") continue;
+
+                    const marker = cells[markerIdx]?.replace(/"/g, '').trim() || "TRUE";
+                    const checker = cells[checkerIdx]?.replace(/"/g, '').trim() || "ไม่ระบุ";
+                    const remarks = cells[remarksIdx]?.replace(/"/g, '').trim() || "-";
+                    
+                    // Simple logic to detect if already resolved based on keywords
+                    const isResolved = remarks.includes("แก้แล้ว") || remarks.includes("แก้ไขแล้ว") || remarks === "-";
+
+                    const record = {
+                        date: dateStr,
+                        marker: marker.toUpperCase() === "TRUE" ? "TRUE" : "FALSE",
+                        checker: checker,
+                        remarks: remarks,
+                        resolved: isResolved ? "TRUE" : "FALSE"
+                    };
+
+                    // Insert or replace existing date record
+                    const existingIdx = allRecords.findIndex(r => r.date.trim() === dateStr);
+                    if (existingIdx !== -1) {
+                        allRecords[existingIdx] = record;
+                    } else {
+                        allRecords.push(record);
+                    }
+                    parsedCount++;
+                }
+
+                detectAvailableMonths();
+                populateMonthsDropdown();
+                populateRecorderDropdown();
+                renderDashboard();
+                showToast(`นำเข้าข้อมูลจาก CSV เรียบร้อย ${parsedCount} รายการ`, "fa-solid fa-file-csv");
+            } catch (err) {
+                console.error(err);
+                alert("เกิดความผิดพลาดในการประมวลผลไฟล์ CSV!");
+            }
+        }
+
+        // Parse SheetJS Excel parsed JSON data
+        function processExcelJSONData(rows) {
+            try {
+                if (rows.length < 2) return;
+
+                const headers = rows[0];
+                let dateIdx = 0, markerIdx = 1, checkerIdx = 2, remarksIdx = 3;
+
+                headers.forEach((h, i) => {
+                    if (h) {
+                        const cleanH = h.toString().trim();
+                        if (cleanH.includes("ว/ด/ป")) dateIdx = i;
+                        else if (cleanH.includes("Marker") || cleanH.includes("เช็คแล้ว")) markerIdx = i;
+                        else if (cleanH.includes("ผู้เช็ค")) checkerIdx = i;
+                        else if (cleanH.includes("หมายเหตุ")) remarksIdx = i;
+                    }
+                });
+
+                let parsedCount = 0;
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length === 0) continue;
+
+                    const dateStr = row[dateIdx]?.toString().trim();
+                    if (!dateStr || dateStr === "" || dateStr === "แก้ไขแล้ว") continue;
+
+                    const marker = row[markerIdx]?.toString().trim() || "TRUE";
+                    const checker = row[checkerIdx]?.toString().trim() || "ไม่ระบุ";
+                    const remarks = row[remarksIdx]?.toString().trim() || "-";
+                    const isResolved = remarks.includes("แก้แล้ว") || remarks.includes("แก้ไขแล้ว") || remarks === "-";
+
+                    const record = {
+                        date: dateStr,
+                        marker: marker.toUpperCase() === "TRUE" || marker === "1" ? "TRUE" : "FALSE",
+                        checker: checker,
+                        remarks: remarks,
+                        resolved: isResolved ? "TRUE" : "FALSE"
+                    };
+
+                    const existingIdx = allRecords.findIndex(r => r.date.trim() === dateStr);
+                    if (existingIdx !== -1) {
+                        allRecords[existingIdx] = record;
+                    } else {
+                        allRecords.push(record);
+                    }
+                    parsedCount++;
+                }
+
+                detectAvailableMonths();
+                populateMonthsDropdown();
+                populateRecorderDropdown();
+                renderDashboard();
+                showToast(`นำเข้าข้อมูลจาก Excel เรียบร้อย ${parsedCount} รายการ`, "fa-solid fa-file-excel");
+            } catch (err) {
+                console.error(err);
+                alert("เกิดความผิดพลาดในการประมวลผลไฟล์ Excel!");
+            }
+        }
+    </script>
+</body>
+</html>
+
