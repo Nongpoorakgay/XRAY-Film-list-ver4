@@ -448,6 +448,14 @@
 
     <!-- Core Javascript Code -->
     <script>
+    const supabaseUrl = 'https://ofushtzmjbrkrgzfikup.supabase.co
+    const supabaseKey = 'sb_publishable_gY9hglpMyMBtjqIOdhALtw_KaXr609Z'
+    
+    const supabase = window.supabase.createClient(
+        supabaseUrl,
+        supabaseKey
+    )
+        
         // Global State storing all the loaded records from uploaded files
         let allRecords = [];
         let monthsAvailable = [];
@@ -1081,7 +1089,18 @@
             const resolved = document.getElementById("formResolvedCheck").checked ? "TRUE" : "FALSE";
 
             const payload = { date, marker, checker, remarks, resolved };
-
+            // SAVE TO SUPABASE
+            supabase
+                .from('film_check')
+                .insert([
+                    {
+                        check_date: date,
+                        marker_correct: marker === "TRUE",
+                        checker_name: checker,
+                        abnormal_note: remarks,
+                        fixed_completed: resolved === "TRUE"
+                    }
+                ])
             if (isEdit) {
                 // Find and edit index
                 const idx = allRecords.findIndex(r => r.date.trim() === originalDate.trim());
